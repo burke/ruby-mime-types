@@ -29,7 +29,6 @@ module MIME::Types::Columnar
       line = line.split
       content_type = line.shift
       extensions = line
-      # content_type, *extensions = line.split
 
       type = MIME::Type::Columnar.new(self, content_type, extensions)
       @__mime_data__ << type

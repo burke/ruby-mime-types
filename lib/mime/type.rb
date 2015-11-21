@@ -71,6 +71,16 @@ class MIME::Type
   private_constant :MEDIA_TYPE_RE, :I18N_RE, :BINARY_ENCODINGS,
     :ASCII_ENCODINGS
 
+  def self.pooled_accessor(sym, private_writer: false) # :nodoc:
+    attr_reader sym
+    ivar = :"@#{sym}"
+    writer = :"#{sym}="
+    define_method writer do |val|
+      instance_variable_set(ivar, ValuePool[val])
+    end
+    private writer if private_writer
+  end
+
   # Builds a MIME::Type object from the +content_type+, a MIME Content Type
   # value (e.g., 'text/plain' or 'applicaton/x-eruby'). The constructed object
   # is yielded to an optional block for additional configuration, such as
@@ -86,8 +96,8 @@ class MIME::Type
   # Yields the newly constructed +self+ object.
   def initialize(content_type) # :yields self:
     @friendly = {}
-    @obsolete = @registered = false
-    @preferred_extension = @docs = @use_instead = nil
+    self.obsolete = self.registered = false
+    self.preferred_extension = self.docs = self.use_instead = nil
     self.extensions = []
 
     case content_type
@@ -180,6 +190,9 @@ class MIME::Type
     other.kind_of?(MIME::Type) and self == other
   end
 
+  ##
+  # :attr_reader: content_type
+  #
   # Returns the whole MIME content-type string.
   #
   # The content type is a presentation value from the MIME type registry and
@@ -190,6 +203,9 @@ class MIME::Type
   #   x-chemical/x-pdb  => x-chemical/x-pdb
   #   audio/QCELP       => audio/QCELP
   attr_reader :content_type
+  ##
+  # :attr_reader: simplified
+  #
   # A simplified form of the MIME content-type string, suitable for
   # case-insensitive comparison, with any extension markers (<tt>x-</tt)
   # removed and converted to lowercase.
@@ -197,31 +213,43 @@ class MIME::Type
   #   text/plain        => text/plain
   #   x-chemical/x-pdb  => x-chemical/x-pdb
   #   audio/QCELP       => audio/qcelp
-  attr_reader :simplified
+  pooled_accessor :simplified, private_writer: true
+  ##
+  # :attr_reader: media_type
+  #
   # Returns the media type of the simplified MIME::Type.
   #
   #   text/plain        => text
   #   x-chemical/x-pdb  => x-chemical
   #   audio/QCELP       => audio
-  attr_reader :media_type
+  pooled_accessor :media_type, private_writer: true
+  ##
+  # :attr_reader: raw_media_type
+  #
   # Returns the media type of the unmodified MIME::Type.
   #
   #   text/plain        => text
   #   x-chemical/x-pdb  => x-chemical
   #   audio/QCELP       => audio
-  attr_reader :raw_media_type
+  pooled_accessor :raw_media_type, private_writer: true
+  ##
+  # :attr_reader: sub_type
+  #
   # Returns the sub-type of the simplified MIME::Type.
   #
   #   text/plain        => plain
   #   x-chemical/x-pdb  => pdb
   #   audio/QCELP       => QCELP
-  attr_reader :sub_type
+  pooled_accessor :sub_type, private_writer: true
+  ##
+  # :attr_reader: raw_sub_type
+  #
   # Returns the media type of the unmodified MIME::Type.
   #
   #   text/plain        => plain
   #   x-chemical/x-pdb  => x-pdb
   #   audio/QCELP       => qcelp
-  attr_reader :raw_sub_type
+  pooled_accessor :raw_sub_type, private_writer: true
 
   ##
   # The list of extensions which are known to be used for this MIME::Type.
@@ -235,7 +263,8 @@ class MIME::Type
 
   ##
   def extensions=(value) # :nodoc:
-    @extensions = Set[*Array(value).flatten.compact].freeze
+    value = Array(value).flatten.compact.map { |e| ValuePool[e] }
+    @extensions = Set[*value].freeze
     MIME::Types.send(:reindex_extensions, self)
   end
 
@@ -262,7 +291,7 @@ class MIME::Type
   ##
   def preferred_extension=(value) # :nodoc:
     add_extensions(value) if value
-    @preferred_extension = value
+    @preferred_extension = ValuePool[value]
   end
 
   ##
@@ -287,7 +316,7 @@ class MIME::Type
     if enc.nil? or enc == :default
       @encoding = default_encoding
     elsif BINARY_ENCODINGS.include?(enc) or ASCII_ENCODINGS.include?(enc)
-      @encoding = enc
+      @encoding = ValuePool[enc]
     else
       fail InvalidEncoding, enc
     end
@@ -295,7 +324,11 @@ class MIME::Type
 
   # Returns the default encoding for the MIME::Type based on the media type.
   def default_encoding
-    (@media_type == 'text') ? 'quoted-printable' : 'base64'
+    if @media_type == 'text'.freeze
+      ValuePool['quoted-printable'.freeze]
+    else
+      ValuePool['base64'.freeze]
+    end
   end
 
   ##
@@ -311,10 +344,10 @@ class MIME::Type
   end
 
   ##
-  attr_writer :use_instead
+  pooled_accessor :use_instead
 
   # Returns +true+ if the media type is obsolete.
-  attr_accessor :obsolete
+  pooled_accessor :obsolete
   alias_method :obsolete?, :obsolete
 
   # The documentation for this MIME::Type.
@@ -350,7 +383,7 @@ class MIME::Type
   #      # from application/vnd.3gpp.bsf+xml
   #    x_msword.i18n_key   # => "application.word"
   #      # from application/x-msword
-  attr_reader :i18n_key
+  pooled_accessor :i18n_key, private_writer: true
 
   ##
   # The cross-references list for this MIME::Type.
@@ -364,7 +397,7 @@ class MIME::Type
   def xrefs=(x) # :nodoc:
     MIME::Types::Container.new.merge(x).tap do |xr|
       xr.each do |k, v|
-        xr[k] = Set[*v] unless v.kind_of? Set
+        xr[k] = Set[*v.map { |e| ValuePool[e] }] unless v.kind_of? Set
       end
 
       @xrefs = xr
@@ -380,7 +413,7 @@ class MIME::Type
   end
 
   # Indicates whether the MIME type has been registered with IANA.
-  attr_accessor :registered
+  pooled_accessor :registered
   alias_method :registered?, :registered
 
   # MIME types can be specified to be sent across a network in particular
@@ -398,7 +431,7 @@ class MIME::Type
   end
 
   # Indicateswhether the MIME type is declared as a signature type.
-  attr_accessor :signature
+  pooled_accessor :signature
   alias_method :signature?, :signature
 
   # Returns +true+ if the MIME::Type specifies an extension list,
@@ -438,12 +471,12 @@ class MIME::Type
   #
   # This method should be considered a private implementation detail.
   def encode_with(coder)
-    coder['content-type']        = @content_type
-    coder['docs']                = @docs unless @docs.nil? or @docs.empty?
-    unless @friendly.nil? or @friendly.empty?
-      coder['friendly']            = @friendly
+    coder['content-type']        = content_type
+    coder['docs']                = docs unless docs.nil? or docs.empty?
+    unless friendly.nil? or friendly.empty?
+      coder['friendly']          = friendly
     end
-    coder['encoding']            = @encoding
+    coder['encoding']            = encoding
     coder['extensions']          = @extensions.to_a unless @extensions.empty?
     coder['preferred-extension'] = @preferred_extension if @preferred_extension
     if obsolete?
@@ -530,13 +563,18 @@ class MIME::Type
 
   def content_type=(type_string)
     match = MEDIA_TYPE_RE.match(type_string)
+
     fail InvalidContentType, type_string if match.nil?
 
-    @content_type                  = type_string
-    @raw_media_type, @raw_sub_type = match.captures
-    @simplified                    = MIME::Type.simplified(match)
-    @i18n_key                      = MIME::Type.i18n_key(match)
-    @media_type, @sub_type         = MEDIA_TYPE_RE.match(@simplified).captures
+    @content_type       = ValuePool[type_string]
+    self.raw_media_type = match.captures.first
+    self.raw_sub_type   = match.captures.last
+    self.simplified     = MIME::Type.simplified(match)
+    self.i18n_key       = MIME::Type.i18n_key(match)
+
+    match               = MEDIA_TYPE_RE.match(@simplified)
+    self.media_type     = match.captures.first
+    self.sub_type       = match.captures.last
   end
 
   def xref_map(values, helper)
@@ -563,4 +601,10 @@ class MIME::Type
   def xref_url_for_template(value)
     'http://www.iana.org/assignments/media-types/%s'.freeze % value
   end
+
+  class << self
+    undef pooled_accessor
+  end
 end
+
+require_relative 'type/value_pool'
