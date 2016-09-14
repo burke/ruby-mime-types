@@ -384,16 +384,6 @@ describe MIME::Type do
     end
   end
 
-  describe '#raw_media_type' do
-    it 'extracts the media type as case-preserved' do
-      assert_equal 'Text', mime_type('Text/plain').raw_media_type
-    end
-
-    it 'does not remove x- prefixes' do
-      assert_equal('x-appl', x_appl_x_zip.raw_media_type)
-    end
-  end
-
   describe '#sub_type' do
     it 'extracts the sub type as lowercase' do
       assert_equal 'plain', text_plain.sub_type

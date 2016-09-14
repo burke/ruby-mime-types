@@ -12,7 +12,10 @@ describe MIME::Types::Cache do
     require 'fileutils'
 
     MUTEX.synchronize do
-      @cache_file = File.expand_path('../cache.tst', __FILE__)
+      # Enable parallelism for ajbouh/qa (QA_WORKER) && grosser/parallel_tests
+      # (TEST_ENV_NUMBER)
+      ix = ENV['QA_WORKER'] || ENV['TEST_ENV_NUMBER']
+      @cache_file = File.expand_path("../cache.tst#{ix}", __FILE__)
       ENV['RUBY_MIME_TYPES_CACHE'] = @cache_file
       clear_cache_file
 
