@@ -1,6 +1,6 @@
-Code-of-Conduct.rdoc
-Contributing.rdoc
-History.rdoc
+Code-of-Conduct.md
+Contributing.md
+History.md
 Licence.rdoc
 Manifest.txt
 README.rdoc
@@ -13,11 +13,11 @@ lib/mime/types/_columnar.rb
 lib/mime/types/cache.rb
 lib/mime/types/columnar.rb
 lib/mime/types/container.rb
+lib/mime/types/default_registry.rb
 lib/mime/types/deprecations.rb
 lib/mime/types/full.rb
 lib/mime/types/loader.rb
 lib/mime/types/logger.rb
-lib/mime/types/registry.rb
 test/bad-fixtures/malformed
 test/fixture/json.json
 test/fixture/old-data

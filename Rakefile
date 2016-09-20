@@ -17,7 +17,7 @@ spec = Hoe.spec 'mime-types' do
 
   require_ruby_version '>= 2.0'
 
-  self.history_file = 'History.rdoc'
+  self.history_file = 'History.md'
   self.readme_file = 'README.rdoc'
 
   license 'MIT'

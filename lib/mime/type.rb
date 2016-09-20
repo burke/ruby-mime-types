@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 ##
 module MIME
 end
@@ -5,53 +7,45 @@ end
 # The definition of one MIME content-type.
 #
 # == Usage
-#  require 'mime/types'
 #
-#  plaintext = MIME::Types['text/plain'].first
-#  # returns [text/plain, text/plain]
-#  text = plaintext.first
-#  print text.media_type           # => 'text'
-#  print text.sub_type             # => 'plain'
+#   require 'mime/types'
 #
-#  puts text.extensions.join(" ")  # => 'asc txt c cc h hh cpp'
+#   text = MIME::Types['text/plain'].first # => #<MIME::Type: text/plain>
+#   print text.media_type           # => 'text'
+#   print text.sub_type             # => 'plain'
 #
-#  puts text.encoding              # => 8bit
-#  puts text.binary?               # => false
-#  puts text.ascii?                # => true
-#  puts text == 'text/plain'       # => true
-#  puts MIME::Type.simplified('x-appl/x-zip') # => 'appl/zip'
+#   puts text.extensions.join(" ")  # => 'txt asc c cc h hh cpp'
 #
-#  puts MIME::Types.any? { |type|
-#    type.content_type == 'text/plain'
-#  }                               # => true
-#  puts MIME::Types.all?(&:registered?)
-#                                  # => false
+#   puts text.encoding              # => 8bit
+#   puts text.binary?               # => false
+#   puts text.ascii?                # => true
+#   puts text == 'text/plain'       # => true
+#   puts MIME::Type.simplified('x-appl/x-zip') # => 'appl/zip'
+#
+#   puts MIME::Types.any? { |type| type.content_type == 'text/plain' } # => true
+#   puts MIME::Types.all?(&:registered?) # => false
 class MIME::Type
   # Reflects a MIME content-type specification that is not correctly
   # formatted (it isn't +type+/+subtype+).
   class InvalidContentType < ArgumentError
-    # :stopdoc:
-    def initialize(type_string)
+    def initialize(type_string) #:nodoc:
       @type_string = type_string
     end
 
-    def to_s
+    def to_s #:nodoc:
       "Invalid Content-Type #{@type_string.inspect}"
     end
-    # :startdoc:
   end
 
   # Reflects an unsupported MIME encoding.
   class InvalidEncoding < ArgumentError
-    # :stopdoc:
-    def initialize(encoding)
+    def initialize(encoding) #:nodoc:
       @encoding = encoding
     end
 
-    def to_s
+    def to_s #:nodoc:
       "Invalid Encoding #{@encoding.inspect}"
     end
-    # :startdoc:
   end
 
   # The released version of the mime-types library.
@@ -60,9 +54,7 @@ class MIME::Type
   include Comparable
 
   # :stopdoc:
-  # TODO verify mime-type character restrictions; I am pretty sure that this is
-  # too wide open.
-  MEDIA_TYPE_RE    = %r{([-\w.+]+)/([-\w.+]*)}
+  MEDIA_TYPE_RE    = %r{([[:alpha:]][-\w.+]*)/([[:alnum:]][-\w.+]*)}
   I18N_RE          = %r{[^[:alnum:]]}
   BINARY_ENCODINGS = %w(base64 8bit)
   ASCII_ENCODINGS  = %w(7bit quoted-printable)
@@ -237,12 +229,15 @@ class MIME::Type
   def extensions=(value) # :nodoc:
     @extensions = Set[*Array(value).flatten.compact].freeze
     MIME::Types.send(:reindex_extensions, self)
+    @extensions
   end
 
-  # Merge the +extensions+ provided into this MIME::Type. The extensions added
-  # will be merged uniquely.
+  # Uniquely merge one or more +extensions+ provided into this type.
+  #
+  #   text.add_extensions('txt') # => %w(txt asc c cc h hh cpp)
   def add_extensions(*extensions)
     self.extensions += extensions
+    self.extensions
   end
 
   ##
@@ -251,6 +246,10 @@ class MIME::Type
   #
   # When setting #preferred_extensions, if #extensions does not contain this
   # extension, this will be added to #xtensions.
+  #
+  #   text.preferred_extension # => 'txt'
+  #   text.preferred_extension = 'markdown' # => 'markdown'
+  #   text.preferred_extension # => 'markdown'
   #
   # :attr_accessor: preferred_extension
 
@@ -420,7 +419,12 @@ class MIME::Type
     content_type
   end
 
-  # Converts the MIME::Type to a JSON string.
+  # Returns a JSON string for the  MIME::Type as a JSON object.
+  #
+  # For compatibility with Rails JSON encoders, accepts and passes on any
+  # +args+ provided.
+  #
+  #   text.to_json # => {"content-type":"text/plain",…}
   def to_json(*args)
     require 'json'
     to_h.to_json(*args)
@@ -490,18 +494,31 @@ class MIME::Type
 
   class << self
     # MIME media types are case-insensitive, but are typically presented in a
-    # case-preserving format in the type registry. This method converts
-    # +content_type+ to lowercase.
+    # case-preserving format in the type registry.
+    #
+    # Returns the provided +content_type+ as a lowercase string, or +nil+ if
+    # the content type is not valid.
     #
     # In previous versions of mime-types, this would also remove any extension
     # prefix (<tt>x-</tt>). This is no longer default behaviour, but may be
     # provided by providing a truth value to +remove_x_prefix+.
+    #
+    #   MIME::Type.simplified('text/_plain') # => nil
+    #   MIME::Type.simplified('text/plain') # => 'text/plain'
+    #   MIME::Type.simplified('text/Plain') # => 'text/plain'
+    #   MIME::Type.simplified('text/x-Plain') # => 'text/x-plain'
+    #   MIME::Type.simplified('text/x-Plain', remove_x_prefix: true) # => 'text/plain'
     def simplified(content_type, remove_x_prefix: false)
       simplify_matchdata(match(content_type), remove_x_prefix)
     end
 
-    # Converts a provided +content_type+ into a translation key suitable for
-    # use with the I18n library.
+    # Returns the provided +content_type+ as a string translation key suitable
+    # for use with the I18n library, or +nil+ if the content type is not valid.
+    #
+    #   MIME::Type.i18n_key('text/_plain') # => nil
+    #   MIME::Type.i18n_key('text/plain') # => 'text.plain'
+    #   MIME::Type.i18n_key('text/Plain') # => 'text.plain'
+    #   MIME::Type.i18n_key('text/x-Plain') # => 'text.x-plain'
     def i18n_key(content_type)
       simplify_matchdata(match(content_type), joiner: '.') { |e|
         e.gsub!(I18N_RE, '-'.freeze)
@@ -509,7 +526,14 @@ class MIME::Type
     end
 
     # Return a +MatchData+ object of the +content_type+ against pattern of
-    # media types.
+    # media types, or +nil+ if the content type is not valid.
+    #
+    #   MIME::Type.match('text/_plain') # => nil
+    #   MIME::Type.match('text/plain') # => <MatchData "text/plain" 1:"text" 2:"plain">
+    #   MIME::Type.match('text/Plain')
+    #     # => <MatchData "text/Plain" 1:"text" 2:"Plain">
+    #   MIME::Type.match('text/x-Plain')
+    #     # => <MatchData "text/x-Plain" 1:"text" 2:"x-Plain">
     def match(content_type)
       case content_type
       when MatchData

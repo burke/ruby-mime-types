@@ -194,9 +194,3 @@ In practical terms, there will be fewer releases of mime-types focussing on
 features because of the existence of the [mime-types-data][] gem, and if
 features are marked deprecated in the course of mime-types 3.x, they will not
 be removed until mime-types 4.x or possibly later.
-
-:include: Code-of-Conduct.rdoc
-
-:include: Contributing.rdoc
-
-:include: Licence.rdoc

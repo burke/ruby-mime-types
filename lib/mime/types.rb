@@ -7,61 +7,32 @@ end
 
 require 'mime/type'
 
-# MIME::Types is a registry of MIME types. It is both a class (created with
+# MIME::Types is a registry for MIME types. It is both a class (created with
 # MIME::Types.new) and a default registry (loaded automatically or through
 # interactions with MIME::Types.[] and MIME::Types.type_for).
 #
-# == The Default mime-types Registry
-#
-# The default mime-types registry is loaded automatically when the library
-# is required (<tt>require 'mime/types'</tt>), but it may be lazily loaded
-# (loaded on first use) with the use of the environment variable
-# +RUBY_MIME_TYPES_LAZY_LOAD+ having any value other than +false+. The
-# initial startup is about 14× faster (~10 ms vs ~140 ms), but the
-# registry will be loaded at some point in the future.
-#
-# The default mime-types registry can also be loaded from a Marshal cache
-# file specific to the version of MIME::Types being loaded. This will be
-# handled automatically with the use of a file referred to in the
-# environment variable +RUBY_MIME_TYPES_CACHE+. MIME::Types will attempt to
-# load the registry from this cache file (MIME::Type::Cache.load); if it
-# cannot be loaded (because the file does not exist, there is an error, or
-# the data is for a different version of mime-types), the default registry
-# will be loaded from the normal JSON version and then the cache file will
-# be *written* to the location indicated by +RUBY_MIME_TYPES_CACHE+. Cache
-# file loads just over 4½× faster (~30 ms vs ~140 ms).
-# loads.
-#
-# Notes:
-# * The loading of the default registry is *not* atomic; when using a
-#   multi-threaded environment, it is recommended that lazy loading is not
-#   used and mime-types is loaded as early as possible.
-# * Cache files should be specified per application in a multiprocess
-#   environment and should be initialized during deployment or before
-#   forking to minimize the chance that the multiple processes will be
-#   trying to write to the same cache file at the same time, or that two
-#   applications that are on different versions of mime-types would be
-#   thrashing the cache.
-# * Unless cache files are preinitialized, the application using the
-#   mime-types cache file must have read/write permission to the cache file.
+# The default registry functions are documented under MIME::Types::Registry.
 #
 # == Usage
-#  require 'mime/types'
 #
-#  plaintext = MIME::Types['text/plain']
-#  print plaintext.media_type           # => 'text'
-#  print plaintext.sub_type             # => 'plain'
+#   require 'mime/types'
 #
-#  puts plaintext.extensions.join(" ")  # => 'asc txt c cc h hh cpp'
+#   types = MIME::Types.new # => #<MIME::Types: 0 variants, 0 extensions>
+#   types.add(MIME::Types[%r{text/plain|/xml\z|image/gif}])
+#   types # => #<MIME::Types: 4 variants, 25 extensions>
 #
-#  puts plaintext.encoding              # => 8bit
-#  puts plaintext.binary?               # => false
-#  puts plaintext.ascii?                # => true
-#  puts plaintext.obsolete?             # => false
-#  puts plaintext.registered?           # => true
-#  puts plaintext == 'text/plain'       # => true
-#  puts MIME::Type.simplified('x-appl/x-zip') # => 'appl/zip'
+#   plaintext = types['text/plain'].first
+#   print plaintext.media_type           # => 'text'
+#   print plaintext.sub_type             # => 'plain'
 #
+#   puts plaintext.extensions.join(" ")  # => 'asc txt c cc h hh cpp'
+#
+#   puts plaintext.encoding              # => 8bit
+#   puts plaintext.binary?               # => false
+#   puts plaintext.ascii?                # => true
+#   puts plaintext.obsolete?             # => false
+#   puts plaintext.registered?           # => true
+#   puts plaintext == 'text/plain'       # => true
 class MIME::Types
   # The release version of Ruby MIME::Types
   VERSION = MIME::Type::VERSION
@@ -72,6 +43,10 @@ class MIME::Types
   def initialize
     @type_variants    = Container.new
     @extension_index  = Container.new
+    # This will be removed for mime-types 4; only the default registry will
+    # automatically track type relations for reindexing. All others will need
+    # to opt into this behaviour.
+    MIME::Types.__instances__.add self
   end
 
   # Returns the number of known type variants.
@@ -83,7 +58,8 @@ class MIME::Types
     "#<#{self.class}: #{count} variants, #{@extension_index.count} extensions>"
   end
 
-  # Iterates through the type variants.
+  # Iterates through the type variants. If no block is given, returns an
+  # Enumerator.
   def each
     if block_given?
       @type_variants.each_value { |tv| tv.each { |t| yield t } }
@@ -134,17 +110,17 @@ class MIME::Types
     }
   end
 
-  # Return the list of MIME::Types which belongs to the file based on its
-  # filename extension. If there is no extension, the filename will be used
-  # as the matching criteria on its own.
+  # Finds the MIME::Type objects, if any, that are commonly mapped to the file
+  # extension of the +filename (or the full +filename+ if no extension can be
+  # detected).
   #
-  # This will always return a merged, flatten, priority sorted, unique array.
+  # Returns a merged, flattened, unique priority sorted array.
   #
-  #   puts MIME::Types.type_for('citydesk.xml')
+  #   puts types.type_for('citydesk.xml')
   #     => [application/xml, text/xml]
-  #   puts MIME::Types.type_for('citydesk.gif')
+  #   puts types.type_for('citydesk.gif')
   #     => [image/gif]
-  #   puts MIME::Types.type_for(%w(citydesk.xml citydesk.gif))
+  #   puts types.type_for(%w(citydesk.xml citydesk.gif))
   #     => [application/xml, image/gif, text/xml]
   def type_for(filename)
     Array(filename).flat_map { |fn|
@@ -153,10 +129,10 @@ class MIME::Types
       a.priority_compare(b)
     }
   end
-  alias_method :of, :type_for
+  alias of type_for
 
-  # Add one or more MIME::Type objects to the set of known types. If the
-  # type is already known, a warning will be displayed.
+  # Add one or more MIME::Type objects to this registry. If the type is already
+  # known, a warning will be displayed.
   #
   # The last parameter may be the value <tt>:silent</tt> or +true+ which
   # will suppress duplicate MIME type warnings.
@@ -198,14 +174,11 @@ Type #{type} is already registered as a variant of #{type.simplified}.
     @type_variants[mime_type.simplified] << mime_type
   end
 
-  def reindex_extensions!(mime_type)
-    return unless @type_variants[mime_type.simplified].include?(mime_type)
-    index_extensions!(mime_type)
-  end
-
   def index_extensions!(mime_type)
+    return unless @type_variants[mime_type.simplified].include?(mime_type)
     mime_type.extensions.each { |ext| @extension_index[ext] << mime_type }
   end
+  alias reindex_extensions! index_extensions!
 
   def prune_matches(matches, complete, registered)
     matches.delete_if { |e| !e.complete? } if complete
@@ -218,6 +191,19 @@ Type #{type} is already registered as a variant of #{type.simplified}.
       k =~ pattern
     }.values.inject(:+)
   end
+
+  class << self
+    def __instances__ #:nodoc:
+      @__instances__ ||= Set.new
+    end
+
+    def reindex_extensions(type) #:nodoc:
+      __instances__.each do |instance|
+        instance.send(:reindex_extensions!, type)
+      end
+      true
+    end
+  end
 end
 
 require 'mime/types/cache'
@@ -225,4 +211,4 @@ require 'mime/types/container'
 require 'mime/types/loader'
 require 'mime/types/logger'
 require 'mime/types/_columnar'
-require 'mime/types/registry'
+require 'mime/types/default_registry'
