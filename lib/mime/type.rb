@@ -509,7 +509,11 @@ class MIME::Type
     #   MIME::Type.simplified('text/x-Plain') # => 'text/x-plain'
     #   MIME::Type.simplified('text/x-Plain', remove_x_prefix: true) # => 'text/plain'
     def simplified(content_type, remove_x_prefix: false)
-      simplify_matchdata(match(content_type), remove_x_prefix)
+      if remove_x_prefix || content_type.kind_of?(MatchData)
+        simplify_matchdata(match(content_type), remove_x_prefix)
+      else
+        content_type.downcase
+      end
     end
 
     # Returns the provided +content_type+ as a string translation key suitable
@@ -520,7 +524,7 @@ class MIME::Type
     #   MIME::Type.i18n_key('text/Plain') # => 'text.plain'
     #   MIME::Type.i18n_key('text/x-Plain') # => 'text.x-plain'
     def i18n_key(content_type)
-      simplify_matchdata(match(content_type), joiner: '.') { |e|
+      simplify_matchdata(match(content_type), joiner: '.'.freeze) { |e|
         e.gsub!(I18N_RE, '-'.freeze)
       }
     end
@@ -560,14 +564,14 @@ class MIME::Type
   private
 
   def content_type=(type_string)
-    match = MEDIA_TYPE_RE.match(type_string)
+    match = MIME::Type.match(type_string)
     fail InvalidContentType, type_string if match.nil?
 
     @content_type                  = type_string
     @raw_media_type, @raw_sub_type = match.captures
-    @simplified                    = MIME::Type.simplified(match)
+    @simplified                    = type_string.downcase
     @i18n_key                      = MIME::Type.i18n_key(match)
-    @media_type, @sub_type         = MEDIA_TYPE_RE.match(@simplified).captures
+    @media_type, @sub_type         = match.captures
   end
 
   def xref_map(values, helper)
