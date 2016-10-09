@@ -6,8 +6,4 @@
 source 'https://rubygems.org/'
 gemspec
 
-group :development, :test do
-  gem 'qa-tool'
-end
-
 # vim: syntax=ruby
