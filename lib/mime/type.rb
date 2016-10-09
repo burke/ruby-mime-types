@@ -20,7 +20,7 @@ end
 #   puts text.binary?               # => false
 #   puts text.ascii?                # => true
 #   puts text == 'text/plain'       # => true
-#   puts MIME::Type.simplified('x-appl/x-zip') # => 'appl/zip'
+#   puts MIME::Type.simplified('x-appl/x-zip') # => 'x-appl/x-zip'
 #
 #   puts MIME::Types.any? { |type| type.content_type == 'text/plain' } # => true
 #   puts MIME::Types.all?(&:registered?) # => false
