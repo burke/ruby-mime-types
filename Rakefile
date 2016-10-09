@@ -35,8 +35,10 @@ spec = Hoe.spec 'mime-types' do
   extra_dev_deps << ['minitest-bonus-assertions', '~> 2.0']
   extra_dev_deps << ['minitest-hooks', '~> 1.4']
   extra_dev_deps << ['rake', '~> 10.0']
-  extra_dev_deps << ['fivemat', '~> 1.3' ]
+  extra_dev_deps << ['fivemat', '~> 1.3']
   extra_dev_deps << ['minitest-rg', '~> 5.2']
+  extra_dev_deps << ['derailed_benchmarks', '~> 1.3']
+  extra_dev_deps << ['stackprof', '>= 0']
 
   if Gem::Version.new(RUBY_VERSION) >= Gem::Version.new('2.0')
     extra_dev_deps << ['simplecov', '~> 0.7']
