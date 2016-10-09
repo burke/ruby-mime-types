@@ -8,6 +8,7 @@ Rakefile
 lib/mime-types.rb
 lib/mime/type.rb
 lib/mime/type/columnar.rb
+lib/mime/type/value_pool.rb
 lib/mime/types.rb
 lib/mime/types/_columnar.rb
 lib/mime/types/cache.rb

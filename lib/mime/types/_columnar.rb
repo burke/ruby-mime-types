@@ -24,7 +24,6 @@ module MIME::Types::Columnar
       line = line.split
       content_type = line.shift
       extensions = line
-      # content_type, *extensions = line.split
 
       type = MIME::Type::Columnar.new(self, content_type, extensions)
       @__mime_data__ << type
@@ -60,9 +59,7 @@ module MIME::Types::Columnar
 
   def load_encoding
     each_file_line('encoding') do |type, line|
-      pool ||= {}
-      line.freeze
-      type.instance_variable_set(:@encoding, (pool[line] ||= line))
+      type.instance_variable_set(:@encoding, line)
     end
   end
 
